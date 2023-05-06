@@ -11,14 +11,14 @@ export class Boid extends Box {
   target: THREE.Vector2
   reachedTarget: boolean = false
 
-  private moveAwayFromTargetActive: boolean = false
-  private moveAwayFromTargetTimer: number = 0
-
-  constructor(pos: THREE.Vector3, target: THREE.Vector2) {
-    super()
+  constructor(
+    pos: THREE.Vector3,
+    target: THREE.Vector2,
+    targetColor: THREE.Color
+  ) {
+    super(targetColor)
 
     this.target = target
-    console.log('Boid target:', target)
 
     this.genetics = new BoidGenetics()
     this.applyColorFromGenetics()
@@ -52,32 +52,26 @@ export class Boid extends Box {
     )
   }
 
-  update(delta: number, previewPixels: boolean) {
-    const maxSpeed = this.genetics.maxSpeed
-    this.velocity.add(this.acceleration)
-    this.velocity.clampScalar(-maxSpeed, maxSpeed)
-    this.position.add(this.velocity)
-    this.acceleration.multiplyScalar(0)
+  update(
+    delta: number,
+    maxSpeedScale: number = 1,
+    target?: THREE.Vector3,
+    distanceRadius?: number
+  ) {
+    this.acceleration.multiplyScalar(0) // Reset acceleration
 
-    if (this.moveAwayFromTargetActive) {
-      this.moveAwayFromTargetTimer -= delta
+    if (target && distanceRadius) {
+      const distanceToTarget = this.position.distanceTo(target)
 
-      if (this.moveAwayFromTargetTimer <= 0) {
-        this.moveAwayFromTargetActive = false
-      } else {
-        this.moveAwayFromTargetBehavior()
+      if (distanceToTarget < distanceRadius) {
+        maxSpeedScale = Math.min(maxSpeedScale, 0.5)
       }
     }
-  }
 
-  private moveAwayFromTargetBehavior() {
-    const desired = this.getRandomVelocity()
-      .clone()
-      .sub(this.position)
-      .normalize()
-      .multiplyScalar(-this.genetics.maxSpeed)
-    const steer = desired.sub(this.velocity)
-    this.applyForce(steer)
+    this.velocity
+      .add(this.acceleration)
+      .clampLength(0, this.genetics.maxSpeed * maxSpeedScale)
+    this.position.add(this.velocity.clone().multiplyScalar(delta))
   }
 
   applyForce(force: THREE.Vector3) {
@@ -114,9 +108,6 @@ export class Boid extends Box {
     cohesionWeight: number,
     attractionMode: boolean
   ) {
-    if (this.reachedTarget) {
-      return
-    }
     if (attractionMode) {
       this.attract(boids, 0.35)
       const separation = this.separate(boids)
@@ -186,31 +177,31 @@ export class Boid extends Box {
     return steer
   }
 
-  attractToTarget(decelerationDistance: number = 5) {
+  attractToTarget(
+    decelerationDistance: number = 5,
+    attractionForceScale: number = 1
+  ) {
     const desired = new THREE.Vector3(this.target.x, this.target.y, 0)
     desired.sub(this.position)
 
     const distance = desired.length()
     desired.normalize()
 
-    this.velocity.multiplyScalar(0.5)
+    this.velocity.multiplyScalar(0.5 * attractionForceScale)
     const steering = desired.sub(this.velocity)
 
     this.reachedTarget = distance < decelerationDistance
 
     let speed = distance < decelerationDistance ? distance : 1
-    steering.multiplyScalar((distance / decelerationDistance) * speed)
+    steering.multiplyScalar(
+      (distance / decelerationDistance) * speed * attractionForceScale
+    )
 
-    steering.clampLength(-1, 1)
+    steering.clampLength(-1 * attractionForceScale, 1 * attractionForceScale)
 
     if (!this.reachedTarget) {
       this.applyForce(steering)
     }
-  }
-
-  moveAwayFromTarget(duration: number) {
-    this.moveAwayFromTargetActive = true
-    this.moveAwayFromTargetTimer = duration
   }
 
   align(boids: Boid[], neighborDist = 5.0) {
