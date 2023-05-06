@@ -56,4 +56,20 @@ export class SpatialGrid {
   clear() {
     this.grid.clear()
   }
+
+  remove(boid: Boid) {
+    const key = this.getGridKey(boid.position)
+    const cell = this.grid.get(key)
+
+    if (cell) {
+      const index = cell.indexOf(boid)
+      if (index > -1) {
+        cell.splice(index, 1)
+
+        if (cell.length === 0) {
+          this.grid.delete(key)
+        }
+      }
+    }
+  }
 }

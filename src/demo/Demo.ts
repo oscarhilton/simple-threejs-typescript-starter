@@ -7,10 +7,10 @@ import { BoidSimulation } from './BoidSimulation'
 export class Demo implements Experience {
   resources: Resource[] = []
   boidSimulation: BoidSimulation
-  size: number = 100
+  size: number = 300
 
   constructor(private engine: Engine) {
-    this.boidSimulation = new BoidSimulation(engine, this.size)
+    this.boidSimulation = new BoidSimulation(engine, this.size, 0.3)
   }
 
   init() {
@@ -22,13 +22,13 @@ export class Demo implements Experience {
     directionalLight.position.set(2, 2, 2)
     this.engine.scene.add(directionalLight)
 
-    this.engine.camera.instance.position.z = this.size * 3
+    this.engine.camera.instance.position.z = this.size * 1.5
     this.boidSimulation.init()
   }
 
   resize() {}
 
-  update() {
-    this.boidSimulation.update()
+  update(delta: number) {
+    this.boidSimulation.update(delta)
   }
 }

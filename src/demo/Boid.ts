@@ -8,9 +8,17 @@ export class Boid extends Box {
   acceleration: THREE.Vector3
   position: THREE.Vector3
   genetics: BoidGenetics
+  target: THREE.Vector2
+  reachedTarget: boolean = false
 
-  constructor(pos: THREE.Vector3) {
+  private moveAwayFromTargetActive: boolean = false
+  private moveAwayFromTargetTimer: number = 0
+
+  constructor(pos: THREE.Vector3, target: THREE.Vector2) {
     super()
+
+    this.target = target
+    console.log('Boid target:', target)
 
     this.genetics = new BoidGenetics()
     this.applyColorFromGenetics()
@@ -44,12 +52,32 @@ export class Boid extends Box {
     )
   }
 
-  update() {
+  update(delta: number, previewPixels: boolean) {
     const maxSpeed = this.genetics.maxSpeed
     this.velocity.add(this.acceleration)
     this.velocity.clampScalar(-maxSpeed, maxSpeed)
     this.position.add(this.velocity)
     this.acceleration.multiplyScalar(0)
+
+    if (this.moveAwayFromTargetActive) {
+      this.moveAwayFromTargetTimer -= delta
+
+      if (this.moveAwayFromTargetTimer <= 0) {
+        this.moveAwayFromTargetActive = false
+      } else {
+        this.moveAwayFromTargetBehavior()
+      }
+    }
+  }
+
+  private moveAwayFromTargetBehavior() {
+    const desired = this.getRandomVelocity()
+      .clone()
+      .sub(this.position)
+      .normalize()
+      .multiplyScalar(-this.genetics.maxSpeed)
+    const steer = desired.sub(this.velocity)
+    this.applyForce(steer)
   }
 
   applyForce(force: THREE.Vector3) {
@@ -86,6 +114,9 @@ export class Boid extends Box {
     cohesionWeight: number,
     attractionMode: boolean
   ) {
+    if (this.reachedTarget) {
+      return
+    }
     if (attractionMode) {
       this.attract(boids, 0.35)
       const separation = this.separate(boids)
@@ -153,6 +184,33 @@ export class Boid extends Box {
     }
 
     return steer
+  }
+
+  attractToTarget(decelerationDistance: number = 5) {
+    const desired = new THREE.Vector3(this.target.x, this.target.y, 0)
+    desired.sub(this.position)
+
+    const distance = desired.length()
+    desired.normalize()
+
+    this.velocity.multiplyScalar(0.5)
+    const steering = desired.sub(this.velocity)
+
+    this.reachedTarget = distance < decelerationDistance
+
+    let speed = distance < decelerationDistance ? distance : 1
+    steering.multiplyScalar((distance / decelerationDistance) * speed)
+
+    steering.clampLength(-1, 1)
+
+    if (!this.reachedTarget) {
+      this.applyForce(steering)
+    }
+  }
+
+  moveAwayFromTarget(duration: number) {
+    this.moveAwayFromTargetActive = true
+    this.moveAwayFromTargetTimer = duration
   }
 
   align(boids: Boid[], neighborDist = 5.0) {
@@ -232,30 +290,43 @@ export class Boid extends Box {
     wrapAround: boolean
   ) {
     if (wrapAround) {
-      if (this.position.x < boundary.min.x) this.position.x = boundary.max.x
-      if (this.position.x > boundary.max.x) this.position.x = boundary.min.x
-      if (this.position.y < boundary.min.y) this.position.y = boundary.max.y
-      if (this.position.y > boundary.max.y) this.position.y = boundary.min.y
-      if (this.position.z < boundary.min.z) this.position.z = boundary.max.z
-      if (this.position.z > boundary.max.z) this.position.z = boundary.min.z
+      this.handleWrapAround(boundary)
     } else {
-      if (
-        this.position.x < boundary.min.x + boundaryMargin ||
-        this.position.x > boundary.max.x - boundaryMargin ||
-        this.position.y < boundary.min.y + boundaryMargin ||
-        this.position.y > boundary.max.y - boundaryMargin ||
-        this.position.z < boundary.min.z + boundaryMargin ||
-        this.position.z > boundary.max.z - boundaryMargin
-      ) {
-        const desired = this.position
-          .clone()
-          .sub(boundary.getCenter(new THREE.Vector3()))
-          .normalize()
-          .multiplyScalar(this.genetics.maxSpeed)
-        const steer = desired.clone().sub(this.velocity)
-        steer.clampScalar(-boundaryForce, boundaryForce)
-        this.applyForce(steer)
-      }
+      this.handleBoundaryForce(boundary, boundaryMargin, boundaryForce)
+    }
+  }
+
+  private handleWrapAround(boundary: THREE.Box3) {
+    if (this.position.x < boundary.min.x) this.position.x = boundary.max.x
+    if (this.position.x > boundary.max.x) this.position.x = boundary.min.x
+    if (this.position.y < boundary.min.y) this.position.y = boundary.max.y
+    if (this.position.y > boundary.max.y) this.position.y = boundary.min.y
+    if (this.position.z < boundary.min.z) this.position.z = boundary.max.z
+    if (this.position.z > boundary.max.z) this.position.z = boundary.min.z
+  }
+
+  private handleBoundaryForce(
+    boundary: THREE.Box3,
+    boundaryMargin: number,
+    boundaryForce: number
+  ) {
+    const isOutOfBounds =
+      this.position.x < boundary.min.x + boundaryMargin ||
+      this.position.x > boundary.max.x - boundaryMargin ||
+      this.position.y < boundary.min.y + boundaryMargin ||
+      this.position.y > boundary.max.y - boundaryMargin ||
+      this.position.z < boundary.min.z + boundaryMargin ||
+      this.position.z > boundary.max.z - boundaryMargin
+
+    if (isOutOfBounds) {
+      const desired = this.position
+        .clone()
+        .sub(boundary.getCenter(new THREE.Vector3()))
+        .normalize()
+        .multiplyScalar(this.genetics.maxSpeed)
+      const steer = desired.clone().sub(this.velocity)
+      steer.clampScalar(-boundaryForce, boundaryForce)
+      this.applyForce(steer)
     }
   }
 }
