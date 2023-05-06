@@ -1,41 +1,34 @@
 import { Engine } from '../engine/Engine'
 import * as THREE from 'three'
-import { Box } from './Box'
 import { Experience } from '../engine/Experience'
 import { Resource } from '../engine/Resources'
+import { BoidSimulation } from './BoidSimulation'
 
 export class Demo implements Experience {
   resources: Resource[] = []
+  boidSimulation: BoidSimulation
+  size: number = 100
 
-  constructor(private engine: Engine) {}
+  constructor(private engine: Engine) {
+    this.boidSimulation = new BoidSimulation(engine, this.size)
+  }
 
   init() {
-    const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(10, 10),
-      new THREE.MeshStandardMaterial({ color: 0xffffff })
-    )
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
+    this.engine.scene.add(ambientLight)
 
-    plane.rotation.x = -Math.PI / 2
-    plane.receiveShadow = true
-
-    this.engine.scene.add(plane)
-    this.engine.scene.add(new THREE.AmbientLight(0xffffff, 0.5))
-
-    let directionalLight = new THREE.DirectionalLight(0xffffff, 1)
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1)
     directionalLight.castShadow = true
     directionalLight.position.set(2, 2, 2)
-
     this.engine.scene.add(directionalLight)
 
-    const box = new Box()
-    box.castShadow = true
-    box.rotation.y = Math.PI / 4
-    box.position.set(0, 0.5, 0)
-
-    this.engine.scene.add(box)
+    this.engine.camera.instance.position.z = this.size * 3
+    this.boidSimulation.init()
   }
 
   resize() {}
 
-  update() {}
+  update() {
+    this.boidSimulation.update()
+  }
 }

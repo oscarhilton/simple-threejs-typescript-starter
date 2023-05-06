@@ -1,7 +1,8 @@
-#include "../shaders/lygia/color/palette/water.glsl"
+#include "../shaders/lygia/color/palette/heatmap.glsl"
 
+uniform vec3 color;
 varying vec2 vUv;
 
 void main() {
-    gl_FragColor = vec4(water(vUv.y), 1.0);
+    gl_FragColor = vec4(color, 1.0);
 }
