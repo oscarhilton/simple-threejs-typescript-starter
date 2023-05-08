@@ -16,7 +16,7 @@ export class BoidSimulation {
 
   private previewPixels: boolean = false
   private batchSize: number
-  private previewBatchIndex: number
+  private batchCounter: number
 
   constructor(
     private engine: Engine,
@@ -24,8 +24,8 @@ export class BoidSimulation {
     private speedFactor: number
   ) {
     this.boundary = new THREE.Box3(
-      new THREE.Vector3(-this.size, -this.size, -this.size),
-      new THREE.Vector3(this.size, this.size, this.size)
+      new THREE.Vector3(-this.size, -this.size, -this.size / 3),
+      new THREE.Vector3(this.size, this.size, this.size / 3)
     )
 
     this.numBoids = this.size
@@ -35,12 +35,12 @@ export class BoidSimulation {
     this.spatialGrid = new SpatialGrid(numCells)
 
     this.attractionMode = false
-    this.attractionModeCooldown = 5000 // 5 seconds cooldown
+    this.attractionModeCooldown = 1000 // 5 seconds cooldown
     this.attractionModeTimer = 0
-    this.attractionDuration = 1000 // 3 seconds of attraction
+    this.attractionDuration = 100 // 3 seconds of attraction
 
-    this.batchSize = Math.ceil(Math.sqrt(this.size)) // You can adjust this value based on your performance requirements
-    this.previewBatchIndex = 0
+    this.batchSize = this.size // You can adjust this value based on your performance requirements
+    this.batchCounter = 0
 
     this.init()
   }
@@ -76,7 +76,7 @@ export class BoidSimulation {
       const { imageData, dimensions } = imageResult
       const totalPixels = imageData.width * imageData.height
       const gridSize = totalPixels
-      this.numBoids = totalPixels * 3
+      this.numBoids = totalPixels * 5
 
       this.createBoids(
         this.numBoids,
@@ -266,48 +266,32 @@ export class BoidSimulation {
 
     const distanceRadius = 2 // Adjust this value based on your desired slowdown radius
 
-    if (this.previewPixels) {
-      const startIndex = this.previewBatchIndex * this.batchSize
-      const endIndex = Math.min(startIndex + this.batchSize, this.boids.length)
+    const batchSize = this.batchSize // Number of boids to update per iteration, adjust as needed
+    const startIndex = this.batchCounter * batchSize
+    const endIndex = Math.min(startIndex + batchSize, this.boids.length)
 
-      for (let i = 0; i < this.boids.length; i++) {
-        const boid = this.boids[i]
-
-        if (i >= startIndex && i < endIndex) {
-          boid.attractToTarget(0.5) // Reduce the attraction force by using a smaller value, e.g., 0.1
-        }
-      }
-
-      // Increment the previewBatchIndex
-      this.previewBatchIndex++
-
-      // Reset the previewBatchIndex if all boids are processed
-      if (this.previewBatchIndex * this.batchSize >= this.boids.length) {
-        this.previewBatchIndex = 0
-      }
-    }
-
-    // const buffer = 10 // You can adjust this value based on your requirements
-    // const forceMultiplier = 2 // You can adjust this value based on your requirements
-    for (var boid of this.boids) {
+    for (let i = startIndex; i < endIndex; i++) {
+      const boid = this.boids[i]
       boid.seeking = this.previewPixels
-      this.flyAround(boid)
-      const target = new THREE.Vector3(boid.target.x, boid.target.y, 0)
-
-      boid.boundaries(this.boundary, 2, 0.5, false)
-
-      this.spatialGrid.remove(boid)
 
       if (this.previewPixels) {
-        boid.attractToTarget(0.1) // Reduce the attraction force by using a smaller value, e.g., 0.1
+        boid.attractToTarget(0.8) // Reduce the attraction force by using a smaller value, e.g., 0.1
       }
+      this.flyAround(boid)
 
-      boid.update(delta, 0.1, target, distanceRadius)
+      const target = new THREE.Vector3(boid.target.x, boid.target.y, 0)
+      boid.boundaries(this.boundary, 2, 20, false)
+      this.spatialGrid.remove(boid)
+
+      boid.update(delta, this.boundary, 0.1, target, distanceRadius)
       this.spatialGrid.insert(boid)
     }
 
+    this.batchCounter =
+      (this.batchCounter + 1) % Math.ceil(this.boids.length / batchSize)
+
     // Decrease attractionModeTimer
-    this.attractionModeTimer -= delta * 1000
+    this.attractionModeTimer -= delta * 10
 
     // Check if attraction mode should be active
     this.attractionMode = this.attractionModeTimer > this.attractionModeCooldown
@@ -332,7 +316,7 @@ export class BoidSimulation {
     // boid.flock(filteredBoids, 0, 0, 0, this.attractionMode)
     // } else {
     // Increase the force multipliers for separation, alignment, and cohesion
-    boid.flock(filteredBoids, 1.5, 1.0, 0.1, this.attractionMode)
+    boid.flock(filteredBoids, 2.5, 1.0, 1.0)
     // }
 
     // Update the boid's position and rotation

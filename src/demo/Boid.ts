@@ -49,12 +49,13 @@ export class Boid extends Box {
 
   update(
     delta: number,
+    boundary: THREE.Box3,
     maxSpeedScale: number = 2, // Increase maxSpeedScale
     target?: THREE.Vector3,
     distanceRadius: number = 1
   ) {
     const accelerationScale = 0.5 // Increase accelerationScale
-    const maxVelocity = 20 // Adjust this value as needed
+    const maxVelocity = 40 // Adjust this value as needed
 
     // Normalize the acceleration vector and multiply it by a constant
     if (this.acceleration.length() > 0) {
@@ -72,11 +73,15 @@ export class Boid extends Box {
 
       this.velocity.add(this.acceleration).multiplyScalar(maxSpeedScale)
     } else {
-      this.velocity.add(this.acceleration)
+      this.velocity.add(this.acceleration).multiplyScalar(maxSpeedScale)
     }
+
     this.velocity.clampLength(0, maxVelocity)
 
     this.position.add(this.velocity.clone().multiplyScalar(delta))
+
+    // Clamp position to the boundary
+    this.position.clamp(boundary.min, boundary.max)
   }
 
   applyForce(force: THREE.Vector3) {
@@ -138,27 +143,19 @@ export class Boid extends Box {
     boids: Boid[],
     separationWeight: number,
     alignmentWeight: number,
-    cohesionWeight: number,
-    attractionMode: boolean
+    cohesionWeight: number
   ) {
-    if (attractionMode) {
-      this.attract(boids, 0.35)
-      const separation = this.separate(boids)
-      this.applyForce(separation)
-      this.breed(boids, 0.1) // 0.1 is the breeding probability
-    } else {
-      const separation = this.separate(boids)
-      const alignment = this.align(boids)
-      const cohesion = this.cohere(boids)
+    const separation = this.separate(boids)
+    const alignment = this.align(boids)
+    const cohesion = this.cohere(boids)
 
-      separation.multiplyScalar(separationWeight)
-      alignment.multiplyScalar(alignmentWeight)
-      cohesion.multiplyScalar(cohesionWeight)
+    separation.multiplyScalar(separationWeight)
+    alignment.multiplyScalar(alignmentWeight)
+    cohesion.multiplyScalar(cohesionWeight)
 
-      this.applyForce(separation)
-      this.applyForce(alignment)
-      this.applyForce(cohesion)
-    }
+    this.applyForce(separation)
+    this.applyForce(alignment)
+    this.applyForce(cohesion)
   }
 
   handleCollision(neighbors: Boid[], collisionRadius: number) {
@@ -222,7 +219,7 @@ export class Boid extends Box {
 
   attractToTarget(
     decelerationDistance: number = 5,
-    attractionForceScale: number = 1
+    attractionForceScale: number = 3 // Increase this value for a stronger attraction force
   ) {
     const desired = new THREE.Vector3(this.target.x, this.target.y, 0)
     desired.clone().sub(this.position)
