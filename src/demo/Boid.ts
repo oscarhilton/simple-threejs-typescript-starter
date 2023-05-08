@@ -2,24 +2,27 @@
 import * as THREE from 'three'
 import { Box } from './Box'
 import { BoidGenetics } from './BoidGenetics'
+import { Vector3 } from 'three'
 
 export class Boid extends Box {
   velocity: THREE.Vector3
   acceleration: THREE.Vector3
   position: THREE.Vector3
   genetics: BoidGenetics
-  target: THREE.Vector2
+  target: THREE.Vector3
   reachedTarget: boolean = false
   public seeking = false
+  startPos: THREE.Vector3
 
   constructor(
     pos: THREE.Vector3,
-    target: THREE.Vector2,
+    target: THREE.Vector3,
     targetColor: THREE.Color
   ) {
     super(targetColor, null)
 
     this.target = target
+    this.startPos = pos
 
     this.genetics = new BoidGenetics()
     this.applyColorFromGenetics()
@@ -39,6 +42,10 @@ export class Boid extends Box {
   }
 
   getRandomVelocity() {
+    if (!this.acceleration) {
+      return new THREE.Vector3()
+    }
+    this.acceleration.multiplyScalar(0)
     const maxSpeed = this.genetics.maxSpeed
     return new THREE.Vector3(
       Math.random() * maxSpeed - maxSpeed / 2,
@@ -51,41 +58,24 @@ export class Boid extends Box {
     delta: number,
     boundary: THREE.Box3,
     maxSpeedScale: number = 2, // Increase maxSpeedScale
-    target?: THREE.Vector3,
     distanceRadius: number = 1
   ) {
     const accelerationScale = 0.5 // Increase accelerationScale
-    const maxVelocity = 40 // Adjust this value as needed
+    const maxVelocity = 1.05 // Adjust this value as needed
 
     // Normalize the acceleration vector and multiply it by a constant
     if (this.acceleration.length() > 0) {
       this.acceleration.normalize().multiplyScalar(accelerationScale)
     }
 
-    if (this.seeking) {
-      if (target && distanceRadius) {
-        const distanceToTarget = this.position.distanceTo(target)
-
-        if (distanceToTarget < distanceRadius) {
-          maxSpeedScale = Math.min(-maxSpeedScale, maxSpeedScale)
-        }
-      }
-
-      this.velocity.add(this.acceleration).multiplyScalar(maxSpeedScale)
-    } else {
-      this.velocity.add(this.acceleration).multiplyScalar(maxSpeedScale)
-    }
-
-    this.velocity.clampLength(0, maxVelocity)
+    this.velocity.add(this.acceleration).multiplyScalar(maxSpeedScale)
+    this.velocity.clampLength(-maxVelocity, maxVelocity)
 
     this.position.add(this.velocity.clone().multiplyScalar(delta))
-
-    // Clamp position to the boundary
-    this.position.clamp(boundary.min, boundary.max)
   }
 
   applyForce(force: THREE.Vector3) {
-    this.acceleration.add(force)
+    this.acceleration.add(force).multiplyScalar(this.genetics.maxSpeed * 2)
   }
 
   seek(target: THREE.Vector3) {
@@ -153,9 +143,17 @@ export class Boid extends Box {
     alignment.multiplyScalar(alignmentWeight)
     cohesion.multiplyScalar(cohesionWeight)
 
-    this.applyForce(separation)
-    this.applyForce(alignment)
-    this.applyForce(cohesion)
+    const allForces = new Vector3()
+
+    allForces.add(separation)
+    allForces.add(alignment)
+    allForces.add(cohesion)
+
+    const collision = this.handleCollision(boids, 10)
+
+    allForces.add(collision)
+
+    return allForces
   }
 
   handleCollision(neighbors: Boid[], collisionRadius: number) {
@@ -173,7 +171,7 @@ export class Boid extends Box {
       }
     })
 
-    this.acceleration.add(repulsionForce)
+    return repulsionForce
   }
 
   applyRandomForce(forceScale: number = 1) {
@@ -183,7 +181,7 @@ export class Boid extends Box {
       (Math.random() - 0.5) * forceScale
     )
 
-    this.applyForce(randomForce)
+    this.applyForce(randomForce.multiplyScalar(10))
   }
 
   separate(boids: Boid[], desiredSeparation = 2.0) {
@@ -221,15 +219,12 @@ export class Boid extends Box {
     decelerationDistance: number = 5,
     attractionForceScale: number = 3 // Increase this value for a stronger attraction force
   ) {
-    const desired = new THREE.Vector3(this.target.x, this.target.y, 0)
-    desired.clone().sub(this.position)
+    const desired = this.target.clone().sub(this.position)
 
     const distance = desired.length()
     desired.normalize()
 
     const steering = desired.clone().sub(this.velocity)
-
-    this.reachedTarget = distance < decelerationDistance
 
     // Cubic ease in and out function
     function easeInOutCubic(t: number) {
@@ -238,12 +233,12 @@ export class Boid extends Box {
 
     // Calculate easing based on distance
     const easedDistance = easeInOutCubic(
-      Math.min(distance / decelerationDistance, 1)
+      Math.min(distance / decelerationDistance, 3)
     )
 
-    steering.multiplyScalar(easedDistance * attractionForceScale)
+    steering.normalize().multiplyScalar(easedDistance * attractionForceScale)
 
-    this.applyForce(steering)
+    return steering
   }
 
   align(boids: Boid[], neighborDist = 5.0) {

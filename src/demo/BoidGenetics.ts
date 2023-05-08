@@ -11,7 +11,7 @@ export class BoidGenetics {
   constructor() {
     this.maxSpeed = 2 + Math.random() * 4 // Random value between 1 and 5
     this.maxForce = 0.15 + Math.random() * 0.6 // Random value between 0.1 and 0.5
-    this.perceptionRadius = 20 + Math.random() * 40 // Random value between 10 and 50
+    this.perceptionRadius = 10 + Math.random() * 40 // Random value between 10 and 50
     this.color = new THREE.Color().setHSL(Math.random(), 1.0, 0.5)
     this.reproductionPossibility = 0.01 + Math.random() * 0.04 // Random value between 0.1 and 0.5
   }

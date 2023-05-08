@@ -7,7 +7,7 @@ import { BoidSimulation } from './BoidSimulation'
 export class Demo implements Experience {
   resources: Resource[] = []
   boidSimulation: BoidSimulation
-  size: number = 600
+  size: number = 400
 
   constructor(private engine: Engine) {
     const speedFactor = 1 // Default value, change it to control the speed

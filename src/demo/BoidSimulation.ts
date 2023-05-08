@@ -14,7 +14,7 @@ export class BoidSimulation {
   private attractionModeTimer: number
   private attractionDuration: number
 
-  private previewPixels: boolean = false
+  private previewPixels: boolean = true
   private batchSize: number
   private batchCounter: number
 
@@ -24,12 +24,12 @@ export class BoidSimulation {
     private speedFactor: number
   ) {
     this.boundary = new THREE.Box3(
-      new THREE.Vector3(-this.size, -this.size, -this.size / 3),
-      new THREE.Vector3(this.size, this.size, this.size / 3)
+      new THREE.Vector3(-this.size, -this.size, 5),
+      new THREE.Vector3(this.size, this.size, 5)
     )
 
     this.numBoids = this.size
-    this.speedFactor = speedFactor
+    this.speedFactor = speedFactor * 200
 
     const numCells = Math.ceil(Math.sqrt(this.numBoids))
     this.spatialGrid = new SpatialGrid(numCells)
@@ -39,26 +39,25 @@ export class BoidSimulation {
     this.attractionModeTimer = 0
     this.attractionDuration = 100 // 3 seconds of attraction
 
-    this.batchSize = this.size // You can adjust this value based on your performance requirements
-    this.batchCounter = 0
+    this.batchSize = size / 4 // You can adjust this value based on your performance requirements
+    this.batchCounter = 1
 
     this.init()
   }
 
   private attachEventListeners() {
     window.addEventListener('keydown', (event) => {
-      if (event.code === 'Space') {
+      if (event.code === 'KeyQ') {
         this.previewPixels = true
+        console.log(this.boids.length)
+        this.boids.forEach((boid) => {
+          boid.applyRandomForce(10)
+        })
       }
-    })
-
-    window.addEventListener('keyup', (event) => {
-      if (event.code === 'Space') {
+      if (event.code === 'KeyW') {
         this.previewPixels = false
         this.boids.forEach((boid) => {
-          if (!this.previewPixels) {
-            boid.applyRandomForce(10)
-          }
+          boid.applyRandomForce(10)
         })
       }
     })
@@ -76,7 +75,8 @@ export class BoidSimulation {
       const { imageData, dimensions } = imageResult
       const totalPixels = imageData.width * imageData.height
       const gridSize = totalPixels
-      this.numBoids = totalPixels * 5
+      this.numBoids = totalPixels * 1
+      this.batchSize = this.numBoids
 
       this.createBoids(
         this.numBoids,
@@ -125,9 +125,10 @@ export class BoidSimulation {
           const imgCol = Math.floor(col * (imageWidth / cols))
           const pixelIndex = (imgRow * imageWidth + imgCol) * 4
 
-          const target = new THREE.Vector2(
+          const target = new THREE.Vector3(
             centerX - gridWidth / 2 + cellWidth * col * spacingFactor,
-            centerY - gridHeight / 2 + cellHeight * row * spacingFactor
+            centerY - gridHeight / 2 + cellHeight * row * spacingFactor,
+            this.boundary.max.z / 2
           )
 
           targetColor.setRGB(
@@ -136,11 +137,16 @@ export class BoidSimulation {
             pixelData[pixelIndex + 2] / 255
           )
 
-          const pos = new THREE.Vector3(
-            target.x,
-            target.y,
-            this.boundary.max.z / 2
-          )
+          const pos = false
+            ? new THREE.Vector3(target.x, target.y, this.boundary.max.z / 2)
+            : new THREE.Vector3(
+                this.boundary.min.x +
+                  Math.random() * (this.boundary.max.x - this.boundary.min.x),
+                this.boundary.min.y +
+                  Math.random() * (this.boundary.max.y - this.boundary.min.y),
+                this.boundary.min.z +
+                  Math.random() * (this.boundary.max.z - this.boundary.min.z)
+              )
 
           const boid = new Boid(pos, target, targetColor)
           this.boids.push(boid)
@@ -257,6 +263,9 @@ export class BoidSimulation {
   }
 
   update(delta: number) {
+    if (!this.boids.length) {
+      return
+    }
     delta *= this.speedFactor
     this.spatialGrid.clear()
 
@@ -266,29 +275,46 @@ export class BoidSimulation {
 
     const distanceRadius = 2 // Adjust this value based on your desired slowdown radius
 
-    const batchSize = this.batchSize // Number of boids to update per iteration, adjust as needed
-    const startIndex = this.batchCounter * batchSize
-    const endIndex = Math.min(startIndex + batchSize, this.boids.length)
+    const fullForce = new THREE.Vector3()
+
+    const startIndex = this.batchCounter * this.batchSize
+    const endIndex = Math.min(startIndex + this.batchSize, this.boids.length)
 
     for (let i = startIndex; i < endIndex; i++) {
       const boid = this.boids[i]
       boid.seeking = this.previewPixels
 
       if (this.previewPixels) {
-        boid.attractToTarget(0.8) // Reduce the attraction force by using a smaller value, e.g., 0.1
+        const targetForce = boid.attractToTarget()
+        fullForce.normalize().add(targetForce)
+      } else {
+        const nearbyBoids = this.spatialGrid.query(
+          boid.position,
+          boid.genetics.perceptionRadius
+        )
+        const filteredBoids = nearbyBoids.filter(
+          (nearbyBoid) => nearbyBoid !== boid
+        )
+        const flockForce = boid.flock(filteredBoids, 0.5, 0.8, 0.5)
+        fullForce.normalize().add(flockForce)
       }
-      this.flyAround(boid)
 
-      const target = new THREE.Vector3(boid.target.x, boid.target.y, 0)
-      boid.boundaries(this.boundary, 2, 20, false)
+      boid.applyForce(fullForce.normalize())
+
+      // Update the boid's position and rotation
+      boid.position.copy(boid.position)
+      boid.lookAt(boid.position.clone().add(boid.velocity))
+
+      boid.boundaries(this.boundary, 2, 10, true)
       this.spatialGrid.remove(boid)
 
-      boid.update(delta, this.boundary, 0.1, target, distanceRadius)
+      boid.update(delta, this.boundary, 2, distanceRadius)
       this.spatialGrid.insert(boid)
     }
 
     this.batchCounter =
-      (this.batchCounter + 1) % Math.ceil(this.boids.length / batchSize)
+      (this.batchCounter + 1) %
+      (this.batchSize !== 0 ? Math.ceil(this.boids.length / this.batchSize) : 1)
 
     // Decrease attractionModeTimer
     this.attractionModeTimer -= delta * 10
@@ -303,31 +329,19 @@ export class BoidSimulation {
     }
   }
 
-  flyAround(boid: Boid) {
-    const nearbyBoids = this.spatialGrid.query(
-      boid.position,
-      boid.genetics.perceptionRadius
-    )
-    const filteredBoids = nearbyBoids.filter(
-      (nearbyBoid) => nearbyBoid !== boid
-    )
-
-    // if (this.previewPixels) {
-    // boid.flock(filteredBoids, 0, 0, 0, this.attractionMode)
-    // } else {
-    // Increase the force multipliers for separation, alignment, and cohesion
-    boid.flock(filteredBoids, 2.5, 1.0, 1.0)
-    // }
-
-    // Update the boid's position and rotation
-    boid.position.copy(boid.position)
-    boid.lookAt(boid.position.clone().add(boid.velocity))
-  }
-
   toggleAttractionMode() {
     // If the attraction mode is not active, reset the timer to trigger attraction mode immediately
     if (!this.attractionMode) {
       this.attractionModeTimer = this.attractionModeCooldown
+    }
+  }
+
+  togglePixelMode() {
+    console.log(this.previewPixels)
+    if (this.previewPixels) {
+      this.previewPixels = false
+    } else {
+      this.previewPixels = true
     }
   }
 }
