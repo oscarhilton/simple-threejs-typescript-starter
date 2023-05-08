@@ -20,21 +20,21 @@ export class BoidSimulation {
 
   constructor(private engine: Engine, private size: number) {
     this.boundary = new THREE.Box3(
-      new THREE.Vector3(-this.size, -this.size, -1),
-      new THREE.Vector3(this.size, this.size, 1)
+      new THREE.Vector3(-this.size, -this.size, -this.size),
+      new THREE.Vector3(this.size, this.size, this.size)
     )
 
-    this.numBoids = 2000
+    this.numBoids = this.size * 6
 
     const numCells = Math.ceil(Math.sqrt(this.numBoids))
     this.spatialGrid = new SpatialGrid(numCells)
 
     this.attractionMode = false
-    this.attractionModeCooldown = 10 // 5 seconds cooldown
+    this.attractionModeCooldown = 100 // 5 seconds cooldown
     this.attractionModeTimer = 0
-    this.attractionDuration = 10 // 3 seconds of attraction
+    this.attractionDuration = 100 // 3 seconds of attraction
 
-    this.batchSize = 100 // You can adjust this value based on your performance requirements
+    this.batchSize = this.size // You can adjust this value based on your performance requirements
     this.previewBatchIndex = 0
 
     this.init()
@@ -54,6 +54,50 @@ export class BoidSimulation {
     })
   }
 
+  async init() {
+    const initialGridSize = Math.ceil(Math.sqrt(this.numBoids))
+    const imageResult = await this.loadImage(
+      'assets/test.png',
+      initialGridSize,
+      initialGridSize
+    )
+
+    if (imageResult) {
+      const { imageData, dimensions } = imageResult
+
+      const imageAspectRatio = dimensions.width / dimensions.height
+
+      const totalPixels = imageData.width * imageData.height
+
+      const gridSize = totalPixels
+
+      const gridSceneWidth = imageData.width
+      const gridSceneHeight = imageData.height
+
+      const gridSceneAspectRatio = gridSceneWidth / gridSceneHeight
+
+      let sizeFactor
+      if (gridSceneAspectRatio > imageAspectRatio) {
+        sizeFactor = gridSceneHeight / dimensions.height
+      } else {
+        sizeFactor = gridSceneWidth / dimensions.width
+      }
+
+      const spacingFactor = sizeFactor // Adjust this value as needed
+
+      this.createBoids(
+        this.numBoids,
+        imageData.data,
+        gridSize,
+        dimensions,
+        dimensions.width,
+        1
+      )
+
+      this.attachEventListeners()
+    }
+  }
+
   createBoids(
     boidCount: number,
     pixelData: any,
@@ -63,22 +107,17 @@ export class BoidSimulation {
     sizeFactor: number = 0.01,
     spacingFactor: number = 10
   ) {
-    const rows = gridSize
-    const cols = gridSize
-
-    const aspectRatio = dimensions.width / dimensions.height
+    const rows = Math.sqrt(gridSize)
+    const cols = Math.sqrt(gridSize)
 
     // Adjust the grid width and height based on the aspect ratio
-    const gridWidth =
-      (this.boundary.max.x - this.boundary.min.x) * sizeFactor * aspectRatio
-    const gridHeight = (this.boundary.max.y - this.boundary.min.y) * sizeFactor
+    const gridWidth = dimensions.width * sizeFactor
+    const gridHeight = dimensions.height * sizeFactor
 
     const spacing = spacingFactor
 
-    const cellWidth =
-      cols - 1 === 0 ? 0 : (gridWidth - spacing * (cols - 1)) / (cols - 1)
-    const cellHeight =
-      rows - 1 === 0 ? 0 : (gridHeight - spacing * (rows - 1)) / (rows - 1)
+    const cellWidth = gridWidth / (gridSize - 1)
+    const cellHeight = gridHeight / (gridSize - 1)
 
     const centerX = (this.boundary.min.x + this.boundary.max.x) / 2
     const centerY = (this.boundary.min.y + this.boundary.max.y) / 2
@@ -104,15 +143,9 @@ export class BoidSimulation {
           )
 
           const pos = new THREE.Vector3(
-            this.boundary.min.x +
-              Math.random() * (this.boundary.max.x - this.boundary.min.x),
-            this.boundary.min.y +
-              Math.random() * (this.boundary.max.y - this.boundary.min.y),
-            this.boundary.min.z +
-              row *
-                Math.random() *
-                (this.boundary.max.z - this.boundary.min.z) *
-                0.01
+            centerX - gridWidth / 2 + (cellWidth + spacing) * col,
+            centerY - gridHeight / 2 + (cellHeight + spacing) * row,
+            this.boundary.min.z
           )
 
           const boid = new Boid(pos, target, targetColor)
@@ -122,51 +155,6 @@ export class BoidSimulation {
           index++
         }
       }
-    }
-  }
-
-  async init() {
-    const initialGridSize = Math.ceil(Math.sqrt(this.numBoids))
-    const imageResult = await this.loadImage(
-      'assets/test.png',
-      initialGridSize,
-      initialGridSize
-    )
-
-    if (imageResult) {
-      const { imageData, dimensions } = imageResult
-
-      const imageAspectRatio = dimensions.width / dimensions.height
-
-      // Compute the new gridSize based on the returned dimensions
-      const gridSize = Math.ceil(
-        Math.sqrt(dimensions.width * dimensions.height)
-      )
-
-      const gridSceneWidth = this.boundary.max.x - this.boundary.min.x
-      const gridSceneHeight = this.boundary.max.y - this.boundary.min.y
-
-      const gridSceneAspectRatio = gridSceneWidth / gridSceneHeight
-
-      let sizeFactor
-      if (gridSceneAspectRatio > imageAspectRatio) {
-        sizeFactor = gridSceneHeight / dimensions.height
-      } else {
-        sizeFactor = gridSceneWidth / dimensions.width
-      }
-
-      const spacingFactor = sizeFactor / 100 // Adjust this value as needed
-
-      this.createBoids(
-        this.numBoids,
-        imageData.data,
-        gridSize,
-        dimensions,
-        sizeFactor,
-        spacingFactor
-      )
-
-      this.attachEventListeners()
     }
   }
 
@@ -281,7 +269,7 @@ export class BoidSimulation {
       this.spatialGrid.insert(boid)
     }
 
-    const distanceRadius = 0.01 // Adjust this value based on your desired slowdown radius
+    const distanceRadius = 2 // Adjust this value based on your desired slowdown radius
 
     if (this.previewPixels) {
       const startIndex = this.previewBatchIndex * this.batchSize
@@ -290,9 +278,9 @@ export class BoidSimulation {
       for (let i = 0; i < this.boids.length; i++) {
         const boid = this.boids[i]
 
-        if (i >= startIndex && i < endIndex) {
-          boid.attractToTarget(0.8) // Reduce the attraction force by using a smaller value, e.g., 0.1
-        }
+        // if (i >= startIndex && i < endIndex) {
+        boid.attractToTarget(0.5) // Reduce the attraction force by using a smaller value, e.g., 0.1
+        // }
       }
 
       // Increment the previewBatchIndex
@@ -304,8 +292,8 @@ export class BoidSimulation {
       }
     }
 
-    const buffer = 10 // You can adjust this value based on your requirements
-    const forceMultiplier = 2 // You can adjust this value based on your requirements
+    // const buffer = 10 // You can adjust this value based on your requirements
+    // const forceMultiplier = 2 // You can adjust this value based on your requirements
 
     for (var boid of this.boids) {
       boid.seeking = this.previewPixels
@@ -316,8 +304,8 @@ export class BoidSimulation {
 
       this.spatialGrid.remove(boid)
 
-      const expandedBoundary = this.createExpandedBoundary(this.boundary)
-      boid.applyBoundaryForce(expandedBoundary, buffer, forceMultiplier)
+      // const expandedBoundary = this.createExpandedBoundary(this.boundary)
+      // boid.applyBoundaryForce(expandedBoundary, buffer, forceMultiplier)
 
       boid.update(delta, 0.5, target, distanceRadius)
       this.spatialGrid.insert(boid)
@@ -348,7 +336,8 @@ export class BoidSimulation {
     if (this.previewPixels) {
       boid.flock(filteredBoids, 0, 0, 0, false)
     } else {
-      boid.flock(filteredBoids, 1.5, 1.0, 1.0, this.attractionMode)
+      // Increase the force multipliers for separation, alignment, and cohesion
+      boid.flock(filteredBoids, 3.0, 2.0, 2.0, this.attractionMode)
     }
 
     // Update the boid's position and rotation

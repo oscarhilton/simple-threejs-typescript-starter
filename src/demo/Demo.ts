@@ -14,7 +14,7 @@ export class Demo implements Experience {
   }
 
   init() {
-    this.engine.scene.background = new THREE.Color(0xabcdef) // Replace '0xabcdef' with the desired color in hexadecimal format
+    this.engine.scene.background = new THREE.Color(0xffffff) // Replace '0xabcdef' with the desired color in hexadecimal format
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
     this.engine.scene.add(ambientLight)
