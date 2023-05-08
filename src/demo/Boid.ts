@@ -19,12 +19,14 @@ export class Boid extends Box {
     target: THREE.Vector3,
     targetColor: THREE.Color
   ) {
-    super(targetColor, null)
+    const genetics = new BoidGenetics()
+    super(targetColor, null, genetics.size)
+
+    this.genetics = genetics
 
     this.target = target
     this.startPos = pos
 
-    this.genetics = new BoidGenetics()
     this.applyColorFromGenetics()
 
     this.velocity = this.getRandomVelocity()

@@ -25,12 +25,12 @@ export class BoidSimulation {
     private speedFactor: number
   ) {
     this.boundary = new THREE.Box3(
-      new THREE.Vector3(-this.size, -this.size, 5),
-      new THREE.Vector3(this.size, this.size, 5)
+      new THREE.Vector3(-this.size, -this.size, this.size),
+      new THREE.Vector3(this.size, this.size, -this.size)
     )
 
     this.numBoids = this.size * 4
-    this.speedFactor = speedFactor * 300
+    this.speedFactor = 1000
 
     const numCells = Math.ceil(Math.sqrt(this.numBoids))
     this.spatialGrid = new SpatialGrid(numCells)
@@ -40,8 +40,8 @@ export class BoidSimulation {
     this.attractionModeTimer = 0
     this.attractionDuration = 50000 // 3 seconds of attraction
 
-    this.batchSize = size / 8 // You can adjust this value based on your performance requirements
-    this.batchCounter = 1
+    this.batchSize = size / 10 // You can adjust this value based on your performance requirements
+    this.batchCounter = 0
 
     this.init()
   }
@@ -97,8 +97,8 @@ export class BoidSimulation {
     gridSize: number,
     dimensions: { width: number; height: number },
     imageWidth: number,
-    sizeFactor: number = 2,
-    spacingFactor: number = 10
+    sizeFactor: number = 3,
+    spacingFactor: number = 6
   ) {
     const rows = Math.sqrt(boidCount)
     const cols = Math.sqrt(boidCount)
@@ -121,24 +121,14 @@ export class BoidSimulation {
           const imgCol = Math.floor(col * (imageWidth / cols))
           const pixelIndex = (imgRow * imageWidth + imgCol) * 4
 
-          const screenCenterX = window.innerWidth / 2
-          const screenCenterY = window.innerHeight / 2
           const gridWidth = sizeFactor * cols * cellWidth * spacingFactor
           const gridHeight = sizeFactor * rows * cellHeight * spacingFactor
 
           const target = new THREE.Vector3(
-            screenCenterX -
-              gridWidth / 2 -
-              (col + col * 0.5) *
-                sizeFactor *
-                (cellWidth * 0.8) *
-                spacingFactor,
-            screenCenterY -
-              gridHeight / 2 -
-              (row + row * 0.5) *
-                sizeFactor *
-                (cellHeight * 0.8) *
-                spacingFactor,
+            gridWidth / 2 -
+              (col + 0.5) * sizeFactor * cellWidth * spacingFactor,
+            gridHeight / 2 -
+              (row + 0.5) * sizeFactor * cellHeight * spacingFactor,
             this.boundary.max.z / 2
           )
 
@@ -301,6 +291,8 @@ export class BoidSimulation {
 
       if (this.previewPixels) {
         const targetForce = boid.attractToTarget()
+        // const flockForce = boid.flock(this.boids, 10, 10, 10)
+        // targetForce.normalize().add(flockForce)
         fullForce.normalize().add(targetForce)
       } else {
         const nearbyBoids = this.spatialGrid.query(
@@ -324,10 +316,15 @@ export class BoidSimulation {
         ? boid.lookAt(this.engine.camera.instance.position)
         : boid.lookAt(boid.position.clone().add(boid.velocity))
 
-      boid.boundaries(this.boundary, 2, 10, true)
+      boid.boundaries(this.boundary, 2, 10, !this.previewPixels)
       this.spatialGrid.remove(boid)
 
-      boid.update(delta, this.boundary, 2, distanceRadius)
+      boid.update(
+        delta,
+        this.boundary,
+        this.previewPixels ? 0.5 : 1,
+        distanceRadius
+      )
       this.spatialGrid.insert(boid)
     }
 

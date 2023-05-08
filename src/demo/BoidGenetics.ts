@@ -2,6 +2,7 @@ import * as THREE from 'three'
 
 // BoidGenetics.ts
 export class BoidGenetics {
+  size: number
   maxSpeed: number
   maxForce: number
   perceptionRadius: number
@@ -9,6 +10,7 @@ export class BoidGenetics {
   reproductionPossibility: number
 
   constructor() {
+    this.size = 3 + Math.random() * 4 // Random value between 1 and 5
     this.maxSpeed = 2 + Math.random() * 4 // Random value between 1 and 5
     this.maxForce = 0.15 + Math.random() * 0.6 // Random value between 0.1 and 0.5
     this.perceptionRadius = 10 + Math.random() * 40 // Random value between 10 and 50
