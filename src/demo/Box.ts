@@ -16,9 +16,4 @@ export class Box extends THREE.Mesh {
 
     super(geometry, material)
   }
-
-  updateTexture() {
-    this.material.uniforms.targetColor.needsUpdate = true
-    this.material.uniforms.imageTexture.needsUpdate = true
-  }
 }

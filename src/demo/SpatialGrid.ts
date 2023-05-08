@@ -17,6 +17,10 @@ export class SpatialGrid {
     return `${x},${y},${z}`
   }
 
+  setSize(newSize: number) {
+    this.cellSize = newSize
+  }
+
   insert(boid: Boid) {
     const key = this.getGridKey(boid.position)
     if (this.grid.has(key)) {

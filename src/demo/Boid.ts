@@ -10,13 +10,14 @@ export class Boid extends Box {
   genetics: BoidGenetics
   target: THREE.Vector2
   reachedTarget: boolean = false
+  public seeking = false
 
   constructor(
     pos: THREE.Vector3,
     target: THREE.Vector2,
     targetColor: THREE.Color
   ) {
-    super(targetColor)
+    super(targetColor, null)
 
     this.target = target
 
@@ -26,12 +27,6 @@ export class Boid extends Box {
     this.velocity = this.getRandomVelocity()
     this.acceleration = new THREE.Vector3()
     this.position = new THREE.Vector3().copy(pos)
-  }
-
-  public applyRandomForce() {
-    const randomDirection = this.getRandomVelocity()
-    const target = randomDirection.multiplyScalar(0.1)
-    this.applyForce(target)
   }
 
   private applyColorFromGenetics() {
@@ -54,23 +49,31 @@ export class Boid extends Box {
 
   update(
     delta: number,
-    maxSpeedScale: number = 1,
+    maxSpeedScale: number = 2, // Increase maxSpeedScale
     target?: THREE.Vector3,
-    distanceRadius?: number
+    distanceRadius: number = 1
   ) {
-    this.acceleration.multiplyScalar(0) // Reset acceleration
+    const accelerationScale = 1 // Increase accelerationScale
 
-    if (target && distanceRadius) {
-      const distanceToTarget = this.position.distanceTo(target)
-
-      if (distanceToTarget < distanceRadius) {
-        maxSpeedScale = Math.min(maxSpeedScale, 0.5)
-      }
+    // Normalize the acceleration vector and multiply it by a constant
+    if (this.acceleration.length() > 0) {
+      this.acceleration.normalize().multiplyScalar(accelerationScale)
     }
 
-    this.velocity
-      .add(this.acceleration)
-      .clampLength(0, this.genetics.maxSpeed * maxSpeedScale)
+    if (this.seeking) {
+      if (target && distanceRadius) {
+        const distanceToTarget = this.position.distanceTo(target)
+
+        if (distanceToTarget < distanceRadius) {
+          maxSpeedScale = Math.min(-maxSpeedScale, maxSpeedScale)
+        }
+      }
+
+      this.velocity.add(this.acceleration).multiplyScalar(maxSpeedScale)
+    } else {
+      this.velocity.add(this.acceleration)
+    }
+
     this.position.add(this.velocity.clone().multiplyScalar(delta))
   }
 
@@ -99,6 +102,34 @@ export class Boid extends Box {
 
     averageCenter.divideScalar(boids.length)
     return averageCenter
+  }
+
+  applyBoundaryForce(
+    boundary: THREE.Box3,
+    buffer: number,
+    forceMultiplier: number = 1
+  ) {
+    const force = new THREE.Vector3()
+
+    if (this.position.x < boundary.min.x + buffer) {
+      force.x = forceMultiplier
+    } else if (this.position.x > boundary.max.x - buffer) {
+      force.x = -forceMultiplier
+    }
+
+    if (this.position.y < boundary.min.y + buffer) {
+      force.y = forceMultiplier
+    } else if (this.position.y > boundary.max.y - buffer) {
+      force.y = -forceMultiplier
+    }
+
+    if (this.position.z < boundary.min.z + buffer) {
+      force.z = forceMultiplier
+    } else if (this.position.z > boundary.max.z - buffer) {
+      force.z = -forceMultiplier
+    }
+
+    this.acceleration.add(force)
   }
 
   flock(
@@ -182,26 +213,26 @@ export class Boid extends Box {
     attractionForceScale: number = 1
   ) {
     const desired = new THREE.Vector3(this.target.x, this.target.y, 0)
-    desired.sub(this.position)
+    desired.clone().sub(this.position)
 
     const distance = desired.length()
     desired.normalize()
 
     this.velocity.multiplyScalar(0.5 * attractionForceScale)
-    const steering = desired.sub(this.velocity)
+    const steering = desired.clone().sub(this.velocity)
 
     this.reachedTarget = distance < decelerationDistance
 
-    let speed = distance < decelerationDistance ? distance : 1
+    console.log(this.reachedTarget, distance)
+
+    let speed = distance < decelerationDistance ? 0.1 : distance * 10
     steering.multiplyScalar(
       (distance / decelerationDistance) * speed * attractionForceScale
     )
 
     steering.clampLength(-1 * attractionForceScale, 1 * attractionForceScale)
 
-    if (!this.reachedTarget) {
-      this.applyForce(steering)
-    }
+    this.applyForce(steering)
   }
 
   align(boids: Boid[], neighborDist = 5.0) {

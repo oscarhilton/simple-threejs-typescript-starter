@@ -7,13 +7,15 @@ import { BoidSimulation } from './BoidSimulation'
 export class Demo implements Experience {
   resources: Resource[] = []
   boidSimulation: BoidSimulation
-  size: number = 300
+  size: number = 200
 
   constructor(private engine: Engine) {
-    this.boidSimulation = new BoidSimulation(engine, this.size, 0.3)
+    this.boidSimulation = new BoidSimulation(engine, this.size)
   }
 
   init() {
+    this.engine.scene.background = new THREE.Color(0xabcdef) // Replace '0xabcdef' with the desired color in hexadecimal format
+
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
     this.engine.scene.add(ambientLight)
 
