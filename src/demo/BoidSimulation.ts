@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { Vector3 } from 'three'
 import { Engine } from '../engine/Engine'
 import { Boid } from './Boid'
 import { SpatialGrid } from './SpatialGrid'
@@ -28,18 +29,18 @@ export class BoidSimulation {
       new THREE.Vector3(this.size, this.size, 5)
     )
 
-    this.numBoids = this.size
-    this.speedFactor = speedFactor * 200
+    this.numBoids = this.size * 4
+    this.speedFactor = speedFactor * 300
 
     const numCells = Math.ceil(Math.sqrt(this.numBoids))
     this.spatialGrid = new SpatialGrid(numCells)
 
     this.attractionMode = false
-    this.attractionModeCooldown = 1000 // 5 seconds cooldown
+    this.attractionModeCooldown = 5000 // 5 seconds cooldown
     this.attractionModeTimer = 0
-    this.attractionDuration = 100 // 3 seconds of attraction
+    this.attractionDuration = 50000 // 3 seconds of attraction
 
-    this.batchSize = size / 4 // You can adjust this value based on your performance requirements
+    this.batchSize = size / 8 // You can adjust this value based on your performance requirements
     this.batchCounter = 1
 
     this.init()
@@ -66,7 +67,7 @@ export class BoidSimulation {
   async init() {
     const initialGridSize = Math.ceil(Math.sqrt(this.numBoids))
     const imageResult = await this.loadImage(
-      'assets/test.png',
+      'assets/roase.jpg',
       initialGridSize,
       initialGridSize
     )
@@ -96,23 +97,18 @@ export class BoidSimulation {
     gridSize: number,
     dimensions: { width: number; height: number },
     imageWidth: number,
-    sizeFactor: number = 1.8,
+    sizeFactor: number = 2,
     spacingFactor: number = 10
   ) {
     const rows = Math.sqrt(boidCount)
     const cols = Math.sqrt(boidCount)
 
     // Adjust the grid width and height based on the aspect ratio
-    const gridWidth = dimensions.width * sizeFactor * spacingFactor
-    const gridHeight = dimensions.height * sizeFactor * spacingFactor
+    const gridWidth = dimensions.width * (sizeFactor * spacingFactor)
+    const gridHeight = dimensions.height * (sizeFactor * spacingFactor)
 
     const cellWidth = gridWidth / (gridSize - 1)
     const cellHeight = gridHeight / (gridSize - 1)
-
-    const centerX =
-      this.boundary.min.x + (this.boundary.max.x - this.boundary.min.x) / 2
-    const centerY =
-      this.boundary.min.y + (this.boundary.max.y - this.boundary.min.y) / 2
 
     let index = 0
 
@@ -125,9 +121,24 @@ export class BoidSimulation {
           const imgCol = Math.floor(col * (imageWidth / cols))
           const pixelIndex = (imgRow * imageWidth + imgCol) * 4
 
+          const screenCenterX = window.innerWidth / 2
+          const screenCenterY = window.innerHeight / 2
+          const gridWidth = sizeFactor * cols * cellWidth * spacingFactor
+          const gridHeight = sizeFactor * rows * cellHeight * spacingFactor
+
           const target = new THREE.Vector3(
-            centerX - gridWidth / 2 + cellWidth * col * spacingFactor,
-            centerY - gridHeight / 2 + cellHeight * row * spacingFactor,
+            screenCenterX -
+              gridWidth / 2 -
+              (col + col * 0.5) *
+                sizeFactor *
+                (cellWidth * 0.8) *
+                spacingFactor,
+            screenCenterY -
+              gridHeight / 2 -
+              (row + row * 0.5) *
+                sizeFactor *
+                (cellHeight * 0.8) *
+                spacingFactor,
             this.boundary.max.z / 2
           )
 
@@ -138,7 +149,7 @@ export class BoidSimulation {
           )
 
           const pos = false
-            ? new THREE.Vector3(target.x, target.y, this.boundary.max.z / 2)
+            ? new Vector3().copy(target)
             : new THREE.Vector3(
                 this.boundary.min.x +
                   Math.random() * (this.boundary.max.x - this.boundary.min.x),
@@ -171,6 +182,8 @@ export class BoidSimulation {
       image.src = src
       image.onload = () => {
         const aspectRatio = image.width / image.height
+
+        console.log(image)
         let newWidth = maxWidth
         let newHeight = maxHeight
 
@@ -184,6 +197,8 @@ export class BoidSimulation {
         newWidth = Math.round(newWidth)
         newHeight = Math.round(newHeight)
 
+        console.log(newWidth, newHeight)
+
         const canvas = document.createElement('canvas')
         canvas.width = newWidth
         canvas.height = newHeight
@@ -192,7 +207,7 @@ export class BoidSimulation {
 
         if (!ctx) throw new Error('No context for canvas')
 
-        ctx.drawImage(image, 0, 0, newWidth, newHeight)
+        ctx.drawImage(image, 0, 0, maxWidth, maxHeight)
 
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
         const dimensions = { width: newWidth, height: newHeight }
@@ -299,11 +314,15 @@ export class BoidSimulation {
         fullForce.normalize().add(flockForce)
       }
 
-      boid.applyForce(fullForce.normalize())
+      boid.applyForce(
+        fullForce.normalize().multiplyScalar(boid.genetics.maxForce)
+      )
 
       // Update the boid's position and rotation
       boid.position.copy(boid.position)
-      boid.lookAt(boid.position.clone().add(boid.velocity))
+      this.previewPixels
+        ? boid.lookAt(this.engine.camera.instance.position)
+        : boid.lookAt(boid.position.clone().add(boid.velocity))
 
       boid.boundaries(this.boundary, 2, 10, true)
       this.spatialGrid.remove(boid)
@@ -337,7 +356,6 @@ export class BoidSimulation {
   }
 
   togglePixelMode() {
-    console.log(this.previewPixels)
     if (this.previewPixels) {
       this.previewPixels = false
     } else {

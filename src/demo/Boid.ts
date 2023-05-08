@@ -61,14 +61,17 @@ export class Boid extends Box {
     distanceRadius: number = 1
   ) {
     const accelerationScale = 0.5 // Increase accelerationScale
-    const maxVelocity = 1.05 // Adjust this value as needed
+    const maxVelocity = Math.max(this.genetics.maxForce, 0.5) // Adjust this value as needed
 
     // Normalize the acceleration vector and multiply it by a constant
     if (this.acceleration.length() > 0) {
       this.acceleration.normalize().multiplyScalar(accelerationScale)
     }
 
-    this.velocity.add(this.acceleration).multiplyScalar(maxSpeedScale)
+    this.velocity
+      .add(this.acceleration)
+      .normalize()
+      .multiplyScalar(maxSpeedScale)
     this.velocity.clampLength(-maxVelocity, maxVelocity)
 
     this.position.add(this.velocity.clone().multiplyScalar(delta))
@@ -149,7 +152,7 @@ export class Boid extends Box {
     allForces.add(alignment)
     allForces.add(cohesion)
 
-    const collision = this.handleCollision(boids, 10)
+    const collision = this.handleCollision(boids, 2)
 
     allForces.add(collision)
 
@@ -217,13 +220,10 @@ export class Boid extends Box {
 
   attractToTarget(
     decelerationDistance: number = 5,
-    attractionForceScale: number = 3 // Increase this value for a stronger attraction force
+    attractionForceScale: number = 5000 // Increase this value for a stronger attraction force
   ) {
     const desired = this.target.clone().sub(this.position)
-
     const distance = desired.length()
-    desired.normalize()
-
     const steering = desired.clone().sub(this.velocity)
 
     // Cubic ease in and out function
@@ -233,7 +233,7 @@ export class Boid extends Box {
 
     // Calculate easing based on distance
     const easedDistance = easeInOutCubic(
-      Math.min(distance / decelerationDistance, 3)
+      Math.min(distance / decelerationDistance, distance * 0.3)
     )
 
     steering.normalize().multiplyScalar(easedDistance * attractionForceScale)
