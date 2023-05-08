@@ -63,17 +63,33 @@ export class Boid extends Box {
     distanceRadius: number = 1
   ) {
     const accelerationScale = 0.5 // Increase accelerationScale
-    const maxVelocity = Math.max(this.genetics.maxForce, 0.5) // Adjust this value as needed
 
     // Normalize the acceleration vector and multiply it by a constant
     if (this.acceleration.length() > 0) {
       this.acceleration.normalize().multiplyScalar(accelerationScale)
     }
 
+    // Calculate the distance to the target
+    const distanceToTarget = this.position.distanceTo(this.target)
+
+    // Use cubic easing to slow the boid down as it approaches the target
+    const decelerationDistance = Math.max(distanceRadius, 5)
+    const easedDistance =
+      distanceToTarget < decelerationDistance
+        ? Math.pow(distanceToTarget / decelerationDistance, 3)
+        : 1
+
+    // Calculate the maximum velocity
+    const maxVelocity = Math.max(
+      this.genetics.maxForce,
+      maxSpeedScale * easedDistance
+    )
+
+    // Update the velocity and position
     this.velocity
       .add(this.acceleration)
       .normalize()
-      .multiplyScalar(maxSpeedScale)
+      .multiplyScalar(maxSpeedScale * easedDistance)
     this.velocity.clampLength(-maxVelocity, maxVelocity)
 
     this.position.add(this.velocity.clone().multiplyScalar(delta))
@@ -154,7 +170,7 @@ export class Boid extends Box {
     allForces.add(alignment)
     allForces.add(cohesion)
 
-    const collision = this.handleCollision(boids, 2)
+    const collision = this.handleCollision(boids, this.genetics.size)
 
     allForces.add(collision)
 
@@ -221,6 +237,7 @@ export class Boid extends Box {
   }
 
   attractToTarget(
+    boids,
     decelerationDistance: number = 5,
     attractionForceScale: number = 5000 // Increase this value for a stronger attraction force
   ) {
@@ -237,6 +254,10 @@ export class Boid extends Box {
     const easedDistance = easeInOutCubic(
       Math.min(distance / decelerationDistance, distance * 0.3)
     )
+
+    const collision = this.handleCollision(boids, this.genetics.size)
+
+    steering.add(collision)
 
     steering.normalize().multiplyScalar(easedDistance * attractionForceScale)
 

@@ -4,7 +4,7 @@ import fragmentShader from './shader.frag'
 
 export class Box extends THREE.Mesh {
   constructor(color: THREE.Color, resizedTexture: any, size: number) {
-    const geometry = new THREE.SphereGeometry(size, size, size)
+    const geometry = new THREE.SphereGeometry(size)
     const material = new THREE.ShaderMaterial({
       uniforms: {
         imageTexture: { value: resizedTexture },

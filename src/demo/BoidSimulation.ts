@@ -30,7 +30,7 @@ export class BoidSimulation {
     )
 
     this.numBoids = this.size * 4
-    this.speedFactor = 1000
+    this.speedFactor = 500
 
     const numCells = Math.ceil(Math.sqrt(this.numBoids))
     this.spatialGrid = new SpatialGrid(numCells)
@@ -40,10 +40,8 @@ export class BoidSimulation {
     this.attractionModeTimer = 0
     this.attractionDuration = 50000 // 3 seconds of attraction
 
-    this.batchSize = size / 10 // You can adjust this value based on your performance requirements
+    this.batchSize = size // You can adjust this value based on your performance requirements
     this.batchCounter = 0
-
-    this.init()
   }
 
   private attachEventListeners() {
@@ -65,9 +63,10 @@ export class BoidSimulation {
   }
 
   async init() {
-    const initialGridSize = Math.ceil(Math.sqrt(this.numBoids))
+    console.log('INIT!')
+    const initialGridSize = 50
     const imageResult = await this.loadImage(
-      'assets/roase.jpg',
+      'assets/images.jpg',
       initialGridSize,
       initialGridSize
     )
@@ -76,7 +75,7 @@ export class BoidSimulation {
       const { imageData, dimensions } = imageResult
       const totalPixels = imageData.width * imageData.height
       const gridSize = totalPixels
-      this.numBoids = totalPixels * 1
+      this.numBoids = totalPixels
       this.batchSize = this.numBoids
 
       this.createBoids(
@@ -97,8 +96,8 @@ export class BoidSimulation {
     gridSize: number,
     dimensions: { width: number; height: number },
     imageWidth: number,
-    sizeFactor: number = 3,
-    spacingFactor: number = 6
+    sizeFactor: number = 200,
+    spacingFactor: number = 0.1
   ) {
     const rows = Math.sqrt(boidCount)
     const cols = Math.sqrt(boidCount)
@@ -173,7 +172,6 @@ export class BoidSimulation {
       image.onload = () => {
         const aspectRatio = image.width / image.height
 
-        console.log(image)
         let newWidth = maxWidth
         let newHeight = maxHeight
 
@@ -186,8 +184,6 @@ export class BoidSimulation {
         // Make sure the new dimensions are integers
         newWidth = Math.round(newWidth)
         newHeight = Math.round(newHeight)
-
-        console.log(newWidth, newHeight)
 
         const canvas = document.createElement('canvas')
         canvas.width = newWidth
@@ -278,7 +274,7 @@ export class BoidSimulation {
       this.spatialGrid.insert(boid)
     }
 
-    const distanceRadius = 2 // Adjust this value based on your desired slowdown radius
+    const distanceRadius = 30 // Adjust this value based on your desired slowdown radius
 
     const fullForce = new THREE.Vector3()
 
@@ -289,20 +285,20 @@ export class BoidSimulation {
       const boid = this.boids[i]
       boid.seeking = this.previewPixels
 
+      const nearbyBoids = this.spatialGrid.query(
+        boid.position,
+        boid.genetics.perceptionRadius
+      )
+      const filteredBoids = nearbyBoids.filter(
+        (nearbyBoid) => nearbyBoid !== boid
+      )
       if (this.previewPixels) {
-        const targetForce = boid.attractToTarget()
+        const targetForce = boid.attractToTarget(filteredBoids)
         // const flockForce = boid.flock(this.boids, 10, 10, 10)
         // targetForce.normalize().add(flockForce)
         fullForce.normalize().add(targetForce)
       } else {
-        const nearbyBoids = this.spatialGrid.query(
-          boid.position,
-          boid.genetics.perceptionRadius
-        )
-        const filteredBoids = nearbyBoids.filter(
-          (nearbyBoid) => nearbyBoid !== boid
-        )
-        const flockForce = boid.flock(filteredBoids, 0.5, 0.8, 0.5)
+        const flockForce = boid.flock(filteredBoids, 0.5, 0.5, 0.5)
         fullForce.normalize().add(flockForce)
       }
 
@@ -322,7 +318,7 @@ export class BoidSimulation {
       boid.update(
         delta,
         this.boundary,
-        this.previewPixels ? 0.5 : 1,
+        this.previewPixels ? 0.7 : 0.5,
         distanceRadius
       )
       this.spatialGrid.insert(boid)

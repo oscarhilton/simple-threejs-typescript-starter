@@ -7,7 +7,7 @@ import { BoidSimulation } from './BoidSimulation'
 export class Demo implements Experience {
   resources: Resource[] = []
   boidSimulation: BoidSimulation
-  size: number = 400
+  size: number = 600
 
   constructor(private engine: Engine) {
     const speedFactor = 1 // Default value, change it to control the speed
@@ -15,7 +15,7 @@ export class Demo implements Experience {
   }
 
   init() {
-    this.engine.scene.background = new THREE.Color(0xffffff) // Replace '0xabcdef' with the desired color in hexadecimal format
+    this.engine.scene.background = new THREE.Color(0x111111) // Replace '0xabcdef' with the desired color in hexadecimal format
 
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5)
     this.engine.scene.add(ambientLight)
@@ -25,7 +25,7 @@ export class Demo implements Experience {
     directionalLight.position.set(2, 2, 2)
     this.engine.scene.add(directionalLight)
 
-    this.engine.camera.instance.position.z = this.size * 1.5
+    // this.engine.camera.instance.position.z
     this.boidSimulation.init()
   }
 
