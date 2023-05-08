@@ -53,7 +53,8 @@ export class Boid extends Box {
     target?: THREE.Vector3,
     distanceRadius: number = 1
   ) {
-    const accelerationScale = 1 // Increase accelerationScale
+    const accelerationScale = 0.5 // Increase accelerationScale
+    const maxVelocity = 20 // Adjust this value as needed
 
     // Normalize the acceleration vector and multiply it by a constant
     if (this.acceleration.length() > 0) {
@@ -73,6 +74,7 @@ export class Boid extends Box {
     } else {
       this.velocity.add(this.acceleration)
     }
+    this.velocity.clampLength(0, maxVelocity)
 
     this.position.add(this.velocity.clone().multiplyScalar(delta))
   }
@@ -177,6 +179,16 @@ export class Boid extends Box {
     this.acceleration.add(repulsionForce)
   }
 
+  applyRandomForce(forceScale: number = 1) {
+    const randomForce = new THREE.Vector3(
+      (Math.random() - 0.5) * forceScale,
+      (Math.random() - 0.5) * forceScale,
+      (Math.random() - 0.5) * forceScale
+    )
+
+    this.applyForce(randomForce)
+  }
+
   separate(boids: Boid[], desiredSeparation = 2.0) {
     const steer = new THREE.Vector3()
     let count = 0
@@ -218,19 +230,21 @@ export class Boid extends Box {
     const distance = desired.length()
     desired.normalize()
 
-    this.velocity.multiplyScalar(0.5 * attractionForceScale)
     const steering = desired.clone().sub(this.velocity)
 
     this.reachedTarget = distance < decelerationDistance
 
-    console.log(this.reachedTarget, distance)
+    // Cubic ease in and out function
+    function easeInOutCubic(t: number) {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+    }
 
-    let speed = distance < decelerationDistance ? 0.1 : distance * 10
-    steering.multiplyScalar(
-      (distance / decelerationDistance) * speed * attractionForceScale
+    // Calculate easing based on distance
+    const easedDistance = easeInOutCubic(
+      Math.min(distance / decelerationDistance, 1)
     )
 
-    steering.clampLength(-1 * attractionForceScale, 1 * attractionForceScale)
+    steering.multiplyScalar(easedDistance * attractionForceScale)
 
     this.applyForce(steering)
   }

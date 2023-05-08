@@ -9,8 +9,6 @@ export class BoidGenetics {
   reproductionPossibility: number
 
   constructor() {
-    // this.maxSpeed = 1
-    // this.maxForce = 1
     this.maxSpeed = 2 + Math.random() * 4 // Random value between 1 and 5
     this.maxForce = 0.15 + Math.random() * 0.6 // Random value between 0.1 and 0.5
     this.perceptionRadius = 20 + Math.random() * 40 // Random value between 10 and 50
